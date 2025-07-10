@@ -1,0 +1,341 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SignSpeak: English to Sign Language</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      text-align: center;
+      padding: 20px;
+      transition: background 0.3s, color 0.3s;
+      overflow: hidden;
+    }
+    :root {
+      --bg: #0f172a;
+      --text: #e2e8f0;
+    }
+    .light {
+      --bg: #ffffff;
+      --text: #1e293b;
+    }
+    h1 {
+      color: #10b981;
+      animation: fadeIn 2s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .btn:hover {
+      background: #059669;
+    }
+    input, select {
+      padding: 10px;
+      margin: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    #output {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .sign-img {
+      width: 80px;
+      height: 80px;
+      margin: 5px;
+      border-radius: 8px;
+      border: 2px solid #10b981;
+    }
+    #webcamContainer {
+      margin-top: 30px;
+      display: none;
+    }
+    #webcam canvas {
+      border: 2px solid #10b981;
+      border-radius: 10px;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    #popup {
+      display: none; /* Hidden by default */
+      padding: 20px;
+      font-family: sans-serif;
+      background: #fff;
+      color: #333;
+      max-width: 600px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000; /* Ensure it appears above other content */
+      transition: transform 0.5s ease;
+    }
+    #overlay {
+      display: none; /* Hidden by default */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999; /* Ensure it appears above other content */
+    }
+    .popup-content {
+      display: none; /* Hidden by default */
+    }
+    .active {
+      display: block; /* Show active content */
+    }
+    .popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .popup-header h2 {
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+   <header>
+    
+    <img src="nutan_logo.png" alt="Nutan Public School Logo"
+         style="width: 80px; height: auto; object-fit: contain; border-radius: 8px; margin-right: 10px;">
+    
+   <h1 style="flex-grow: 1; text-align: center; margin: 0; font-size: 36px; font-weight: bold; color: #FF3333; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);">
+     Sign Language Translator
+   </h1>
+
+  
+    
+  </header>
+
+  <button class="btn" onclick="toggleTheme()">🌓 Toggle Dark/Light Mode</button>
+  <br>
+
+  <input type="text" id="inputText" placeholder="Type here...">
+  <button class="btn" onclick="convertToSign()">Convert</button>
+  <button class="btn" onclick="speakText()">🔊 Speak</button>
+  <button class="btn" onclick="startListening()">🎙️ Voice Input</button>
+
+  <div>
+    <label>Quick Phrases:</label>
+    <select onchange="insertPhrase(this.value)">
+      <option value="">--Choose--</option>
+      <option value="Hello, how are you?">Hello, how are you?</option>
+      <option value="Good morning everyone">Good morning everyone</option>
+      <option value="Welcome to the Skill Expo">Welcome to the Skill Expo</option>
+    </select>
+  </div>
+
+  <div id="output"></div>
+
+  <button class="btn" id="aiButton" onclick="toggleAI()">🤖 Start AI Sign Detection</button>
+  <button class="btn" onclick="showPopup()">📖 Learn About ISL</button>
+
+  <div id="webcamContainer">
+    <h3>Live Sign Recognition (AI Model)</h3>
+    <div id="webcam"></div>
+    <p><strong>Predicted:</strong> <span id="prediction">None</span></p>
+  </div>
+
+  <div id="overlay" onclick="hidePopup()"></div>
+  <div id="popup">
+    <div class="popup-header">
+      <h2>🌟 Welcome to SignSpeak!</h2>
+      <button class="btn" onclick="hidePopup()">Cancel</button>
+    </div>
+    <div class="popup-content active" id="welcome">
+      <img src="na.png" alt="Indian Tradition" style="width: 100%; max-width: 500px; max-height: 300px; object-fit: contain; border-radius: 8px; margin: 10px 0;">
+      <p>नमस्ते! Discover the world of Indian Sign Language (ISL) and how it empowers millions. Click below to learn more!</p>
+      <button class="btn" onclick="showChallenges()">Next: Challenges Faced</button>
+    </div>
+    <div class="popup-content" id="challenges">
+      <h3>⚠️ Challenges Faced</h3>
+      <ul>
+        <li>Low public awareness and limited ISL education</li>
+        <li>Shortage of interpreters and teachers</li>
+        <li>Minimal ISL integration in public services</li>
+        <li>Social exclusion of the Deaf community</li>
+      </ul>
+      <button class="btn" onclick="showSolution()">Next: Our Solution</button>
+      <button class="btn" onclick="showWelcome()">Back to Welcome</button>
+    </div>
+    <div class="popup-content" id="solution">
+      <h3>💡 Our Solution</h3>
+      <p>We created an <strong>interactive HTML-based ISL learning webpage</strong> to raise awareness and make learning sign language easy and accessible. Our solution supports:</p>
+      <ul>
+        <li>ISL education for all age groups</li>
+        <li>Digital self-learning tools</li>
+        <li>Public and workplace integration</li>
+      </ul>
+      <button class="btn" onclick="showChallenges()">Back to Challenges</button>
+      <button class="btn" onclick="hidePopup()">Close</button>
+    </div>
+  </div>
+
+  <footer>
+    Created by © Nutan Public School | Mentor: Pallav Shah
+  </footer>
+
+  <script>
+    let model, webcam, maxPredictions, aiStarted = false;
+
+    // Show the initial popup when the page loads
+    window.onload = function() {
+      showPopup();
+    };
+
+    async function toggleAI() {
+      if (aiStarted) {
+        aiStarted = false;
+        document.getElementById("webcamContainer").style.display = "none";
+        document.getElementById("aiButton").innerText = "🤖 Start AI Sign Detection";
+        if (webcam) {
+          webcam.stop(); // Stop the webcam
+        }
+      } else {
+        aiStarted = true;
+        document.getElementById("webcamContainer").style.display = "block";
+        document.getElementById("aiButton").innerText = "🛑 Stop AI Sign Detection";
+
+        const URL = "https://teachablemachine.withgoogle.com/models/KsGqESzuz/";
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
+
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        webcam = new tmImage.Webcam(300, 225, true);
+        await webcam.setup();
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+        document.getElementById("webcam").appendChild(webcam.canvas);
+      }
+    }
+
+    async function loop() {
+      if (aiStarted) {
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
+      }
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      prediction.sort((a, b) => b.probability - a.probability);
+      const result = prediction[0].className;
+      const prob = prediction[0].probability.toFixed(2);
+      document.getElementById("prediction").innerText = result + " (" + prob + ")";
+
+      if (prob > 0.95) {
+        let current = document.getElementById("inputText").value;
+        if (!current.endsWith(result)) {
+          document.getElementById("inputText").value += result;
+          convertToSign();
+        }
+      }
+    }
+
+    function convertToSign() {
+      const input = document.getElementById("inputText").value.toLowerCase();
+      const output = document.getElementById("output");
+      output.innerHTML = "";
+      for (let char of input) {
+        if (char >= 'a' && char <= 'z') {
+          let img = document.createElement("img");
+          img.src = "images/" + char + ".jpg"; // Ensure you have images for each letter
+          img.className = "sign-img";
+          output.appendChild(img);
+        } else if (char === " ") {
+          let space = document.createElement("div");
+          space.style.width = "20px";
+          output.appendChild(space);
+        }
+      }
+    }
+
+    function speakText() {
+      let text = document.getElementById("inputText").value;
+      let speech = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(speech);
+    }
+
+    function startListening() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert('Speech Recognition not supported!');
+        return;
+      }
+      const recognition = new webkitSpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.start();
+      recognition.onresult = function(event) {
+        document.getElementById("inputText").value = event.results[0][0].transcript;
+        convertToSign();
+      };
+    }
+
+    function insertPhrase(phrase) {
+      document.getElementById("inputText").value = phrase;
+      convertToSign();
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle("light");
+    }
+
+    function showPopup() {
+      document.getElementById("popup").style.display = "block";
+      document.getElementById("overlay").style.display = "block";
+    }
+
+    function hidePopup() {
+      document.getElementById("popup").style.display = "none";
+      document.getElementById("overlay").style.display = "none";
+    }
+
+    function showSolution() {
+      document.getElementById("welcome").classList.remove("active");
+      document.getElementById("challenges").classList.remove("active");
+      document.getElementById("solution").classList.add("active");
+    }
+
+    function showChallenges() {
+      document.getElementById("welcome").classList.remove("active");
+      document.getElementById("solution").classList.remove("active");
+      document.getElementById("challenges").classList.add("active");
+    }
+
+    function showWelcome() {
+      document.getElementById("challenges").classList.remove("active");
+      document.getElementById("solution").classList.remove("active");
+      document.getElementById("welcome").classList.add("active");
+    }
+  </script>
+</body>
+</html>
